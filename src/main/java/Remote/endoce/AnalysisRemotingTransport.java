@@ -9,6 +9,10 @@ import Remote.seriable.SerializerFactory;
  * @author zoujianglin
  * @date 2018/8/2 10:57
  */
+
+/**
+ * 按照不同的方式解析RemotingTransport中真正携带的数据对象（也就是enity属性）
+ */
 public class AnalysisRemotingTransport {
 
     public static RemotingTransporter doAnalysisRemoting(RemotingTransporter transporter) {

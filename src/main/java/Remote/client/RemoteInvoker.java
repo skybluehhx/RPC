@@ -62,8 +62,15 @@ public class RemoteInvoker implements InvocationHandler {
 
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 
+        ProviderService providerService = getProviderService();
+        if (providerService == null) {
+            throw new RuntimeException("非法异常，选择的策略不合理或没有该服务");
+        }
 
-        Map<String, List<ProviderService>> serviceMetaDataMapConsume = registerCenterInvoker.getServiceMetaDataMap4Consume();
+        Request request = getRequest(providerService, method);
+        //接着构建传输对象向服务器发送数据；
+        RemotingTransporter remotingTransporter = RemotingTransporter.createRequestTransporter((short) 1, request);
+
         //配置客户端NIO线程组
         EventLoopGroup group = new NioEventLoopGroup();
         try {
@@ -73,34 +80,6 @@ public class RemoteInvoker implements InvocationHandler {
                     .channel(NioSocketChannel.class)//
                     .option(ChannelOption.TCP_NODELAY, true)//
                     .handler(new MyChannelHandler());
-
-            String serverName = this.targetInterface.getSimpleName();
-            //得到服务列表
-            List<ProviderService> list = serviceMetaDataMapConsume.get(serverName);
-            //根据策略选择服务器
-            ClusterStrategy clusterStrategy = ClusterEngine.queryClusterStrategy(strategy);
-            ProviderService providerService = clusterStrategy.select(list);
-            if (providerService == null) {
-                throw new RuntimeException("非常异常，选择的策略不合理");
-            }
-            String host = providerService.getIp();
-            int port = providerService.getPort();
-/*
-            ProviderService providerService = new ProviderService();
-            providerService.setServerName("hello");
-            providerService.setIp("127.0.0.1");
-            //   providerService.setStrategy(1);
-            providerService.setPort(9999);
-*/
-            //接着构建传输对象向服务器发送数据；
-            Request request = new Request();
-            request.setProviderService(providerService);
-            request.setArgs(null);
-            request.setMethodName("say");
-            // request.setModule(short);
-
-            RemotingTransporter remotingTransporter = RemotingTransporter.createRequestTransporter((short) 1, request);
-
             // 异步链接服务器 同步等待链接成功
             io.netty.channel.ChannelFuture f = b.connect(providerService.getIp(), providerService.getPort()).sync();
             f.channel().writeAndFlush(remotingTransporter);
@@ -109,10 +88,8 @@ public class RemoteInvoker implements InvocationHandler {
             f.channel().closeFuture().sync();
             //等待数据读取完毕
             this.countDownLatch.await();
-            System.out.println("返回数据");
             //重新初始化为1 便于后续的使用
             this.countDownLatch = new CountDownLatch(1);
-
             //返回值
             return result.getResult();
 
@@ -122,6 +99,37 @@ public class RemoteInvoker implements InvocationHandler {
         }
 
 
+    }
+
+
+
+    /**
+     * 构建具体的请求
+     *
+     * @return
+     */
+    private Request getRequest(ProviderService providerService, Method method) {
+        Request request = new Request();
+        request.setProviderService(providerService);
+        request.setArgs(null);
+        request.setMethodName(method.getName());
+        return request;
+    }
+
+    /**
+     * 获取服务类
+     *
+     * @return
+     */
+    private ProviderService getProviderService() {
+
+        Map<String, List<ProviderService>> serviceMetaDataMapConsume = registerCenterInvoker.getServiceMetaDataMap4Consume();
+        String serverName = this.targetInterface.getSimpleName();
+        //得到服务列表
+        List<ProviderService> list = serviceMetaDataMapConsume.get(serverName);
+        //根据策略选择服务器
+        ClusterStrategy clusterStrategy = ClusterEngine.queryClusterStrategy(strategy);
+        return clusterStrategy.select(list);
     }
 
     public Object getProxy() {

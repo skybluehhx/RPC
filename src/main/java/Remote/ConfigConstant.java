@@ -6,6 +6,9 @@ package Remote;
  */
 public interface ConfigConstant {
 
+    /**
+     * 一些常见的配置属性
+     */
     String CONFIG_FILE = "RPC.properties";
     String RPC_ROOT_PATH = "RPC.ROOT.PATH";
     String MODULE = "MODULE";
