@@ -1,0 +1,10 @@
+#Intellij project files
+
+.idea
+.gradle
+*.iml
+out
+gen
+/**/build
+/**/classes
+/**/logs
