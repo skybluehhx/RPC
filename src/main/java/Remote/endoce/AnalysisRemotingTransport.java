@@ -16,7 +16,7 @@ import Remote.seriable.SerializerFactory;
 public class AnalysisRemotingTransport {
 
     public static RemotingTransporter doAnalysisRemoting(RemotingTransporter transporter) {
-        switch (transporter.getTransporterType()){
+        switch (transporter.getTransporterType()) {
             case LINProtocol.REQUEST_REMOTING:
                 Request request = SerializerFactory.getiSerializer().deserialize(transporter.getBytes(), Request.class);
                 transporter.setEnity(request);
@@ -25,8 +25,17 @@ public class AnalysisRemotingTransport {
                 Response response = SerializerFactory.getiSerializer().deserialize(transporter.getBytes(), Response.class);
                 transporter.setEnity(response);
                 break;
+            case LINProtocol.LOGIN_REQUEST:
+                int result1 = SerializerFactory.getiSerializer().deserialize(transporter.getBytes(), Integer.class);
+                transporter.setEnity(result1);
+                break;
+            case LINProtocol.LOGIN_RESPONSE:
+                int result = SerializerFactory.getiSerializer().deserialize(transporter.getBytes(), Integer.class);
+                transporter.setEnity(result);
+                break;
+
         }
-        return  transporter;
+        return transporter;
 
         /*if (LINProtocol.REQUEST_REMOTING == transporter.getTransporterType()) {
             Request request = SerializerFactory.getiSerializer().deserialize(transporter.getBytes(), Request.class);

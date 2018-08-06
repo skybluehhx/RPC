@@ -6,10 +6,10 @@ import Remote.Register.ProviderService;
 import Remote.Register.RegisterCenterInvoker;
 import Remote.balance.ClusterEngine;
 import Remote.balance.ClusterStrategy;
+import Remote.endoce.LINProtocol;
 import Remote.endoce.RemotingTransporterDecoder;
 import Remote.endoce.RemotingTransporterEncoder;
 import Remote.model.RemotingTransporter;
-import Remote.server.PRCServiceInvoker.Result;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
@@ -18,7 +18,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.Channel;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -82,12 +82,12 @@ public class RemoteInvoker implements InvocationHandler {
                     .handler(new MyChannelHandler());
             // 异步链接服务器 同步等待链接成功
             io.netty.channel.ChannelFuture f = b.connect(providerService.getIp(), providerService.getPort()).sync();
-            f.channel().writeAndFlush(remotingTransporter);
+           f.channel().writeAndFlush(remotingTransporter);
 
             // 等待链接关闭
             f.channel().closeFuture().sync();
             //等待数据读取完毕
-            this.countDownLatch.await();
+           this.countDownLatch.await();
             //重新初始化为1 便于后续的使用
             this.countDownLatch = new CountDownLatch(1);
             //返回值
@@ -100,7 +100,6 @@ public class RemoteInvoker implements InvocationHandler {
 
 
     }
-
 
 
     /**
@@ -143,20 +142,6 @@ public class RemoteInvoker implements InvocationHandler {
         //  return channel;
     }
 
-    class RemoteHandler extends SimpleChannelHandler {
-
-        @Override
-        public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
-            System.out.println("Client connection");
-            super.channelConnected(ctx, e);
-        }
-
-        @Override
-        public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
-
-        }
-
-    }
 
     private class MyChannelHandler extends ChannelInitializer<SocketChannel> {
 
@@ -165,6 +150,7 @@ public class RemoteInvoker implements InvocationHandler {
             ch.pipeline().addLast(new RemotingTransporterEncoder());
             ch.pipeline().addLast(new RemotingTransporterDecoder());
             // 处理网络IO
+            ch.pipeline().addLast(new LoginAuthReqHandler());
             ch.pipeline().addLast(new ClientHandler());
         }
 
@@ -173,24 +159,67 @@ public class RemoteInvoker implements InvocationHandler {
 
     class ClientHandler extends ChannelInboundHandlerAdapter {
 
-        @Override
-        public void channelActive(io.netty.channel.ChannelHandlerContext ctx) throws Exception {
-        }
 
         @Override
         public void channelRead(io.netty.channel.ChannelHandlerContext ctx, Object msg) throws Exception {
+
             RemotingTransporter transporter = (RemotingTransporter) msg;
-            Response response = (Response) (transporter.getEnity());
+            if (transporter.getTransporterType() == LINProtocol.RESPONSE_REMOTING) {
+                Response response = (Response) (transporter.getEnity());
 
-            System.out.println(response.getStatus());
-            System.out.println(response.getResult());
-            result = response;
-            countDownLatch.countDown();
-
+                System.out.println(response.getStatus());
+                System.out.println(response.getResult());
+                result = response;
+                countDownLatch.countDown();
+            }
+            ctx.fireChannelRead(msg);
 
         }
 
 
+    }
+
+    /**
+     * 开发一个登录认证handler
+     */
+
+    class LoginAuthReqHandler extends ChannelInboundHandlerAdapter {
+
+        @Override
+        public void channelActive(io.netty.channel.ChannelHandlerContext ctx) throws Exception {
+            System.out.println("203 激活了链路");
+            RemotingTransporter remotingTransporter =bulidLoginReq();
+
+            ctx.writeAndFlush(remotingTransporter);
+        }
+/*
+      @Override
+        public void channelRead(io.netty.channel.ChannelHandlerContext ctx, Object msg) throws Exception {
+            RemotingTransporter transporter = (RemotingTransporter) msg;
+            System.out.println("loginthAuth"+transporter.getTransporterType());
+            if (transporter.getTransporterType() == LINProtocol.LOGIN_RESPONSE) {
+                byte loginResult = (Byte) transporter.getEnity();
+                if (loginResult != (byte) 0) {
+                    //握手失败 关闭连接
+                    ctx.close();
+                } else {
+                    System.out.println("login is ok" + "client 2216");
+
+                    ctx.fireChannelRead(msg);
+
+                }
+
+            }
+                ctx.fireChannelRead(msg);
+
+        }
+*/
+        private RemotingTransporter bulidLoginReq() {
+            //握手验证，model和byte并没有用到
+            RemotingTransporter remotingTransporter = RemotingTransporter.createRequestTransporter((short) 1, 3);
+            remotingTransporter.setTransporterType(LINProtocol.LOGIN_REQUEST);
+            return remotingTransporter;
+        }
     }
 
 
